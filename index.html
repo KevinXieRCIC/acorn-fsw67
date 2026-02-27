@@ -298,5 +298,149 @@
         </div>
 
         <div class="hr"></div>
-        </body>
+
+</div>
+    </div>
+  </div>
+
+  <div class="stickyBar">
+    <div class="stickyInner">
+      <div>
+        <div class="k">当前总分</div>
+        <div class="v" id="stickyScore" style="font-weight:1000;">—</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="pillSmall" id="stickyTag">—</span>
+        <button class="pillSmall" id="stickyPDF">导出PDF</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id)=>document.getElementById(id);
+  function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+  function clbToFirstLangPts(clb) {
+    // clb: 10 means 9+
+    if (clb >= 10) return 6;
+    if (clb === 8) return 5;
+    if (clb === 7) return 4;
+    return 0;
+  }
+
+  function getFirstLang() {
+    const ids = ["l1_s","l1_l","l1_r","l1_w"];
+    const clbs = ids.map(id => parseInt($(id).value,10) || 0);
+    const pts = clbs.map(clbToFirstLangPts);
+    const total = pts.reduce((a,b)=>a+b,0);
+    const eligible = clbs.every(v => v >= 7); // must be >=7 each ability for FSW minimum
+    const selectedAll = clbs.every(v => v > 0);
+    return { clbs, pts, total, eligible, selectedAll };
+  }
+
+  function getAdaptPoints(){
+    const checks = Array.from(document.querySelectorAll('#adaptList input[type="checkbox"]'));
+    let sum = 0;
+    checks.forEach(c=>{ if(c.checked) sum += parseInt(c.dataset.pts||"0",10); });
+    return clamp(sum, 0, 10);
+  }
+
+  function evaluate(){
+    const age = parseInt($('age').value,10) || 0;
+    const edu = parseInt($('edu').value,10) || 0;
+    const exp = parseInt($('exp').value,10) || 0;
+    const job = parseInt($('job').value,10) || 0;
+    const adapt = getAdaptPoints();
+
+    const l1 = getFirstLang();
+    const l2pts = parseInt($('l2_simple')?.value || 0, 10);
+const lang = l1.total + l2pts;
+
+    // language hints
+    const l1Hint = $('lang1Hint');
+    if(!l1.selectedAll){
+      l1Hint.innerHTML = "第一官方语言：请把四项都选好（当前未选择的按 0 分处理）。";
+      l1Hint.style.color = "var(--mut)";
+      l1Hint.style.fontWeight = "700";
+    } else if(!l1.eligible){
+      l1Hint.innerHTML = "⚠️ 第一官方语言：有单项低于 CLB7，通常不满足 FSW 最低语言要求。";
+      l1Hint.style.color = "var(--acorn)";
+      l1Hint.style.fontWeight = "1000";
+    } else {
+      l1Hint.innerHTML = `第一官方语言得分：<b>${l1.total}</b> / 24（S/L/R/W：${l1.pts.join(" / ")}）`;
+      l1Hint.style.color = "var(--mut)";
+      l1Hint.style.fontWeight = "900";
+    }
+
+    const total = age + edu + lang + exp + job + adapt;
+
+    $('d_age').textContent = age;
+    $('d_edu').textContent = edu;
+    $('d_lang').textContent = lang;
+    $('d_exp').textContent = exp;
+    $('d_job').textContent = job;
+    $('d_adapt').textContent = adapt;
+    $('total').textContent = total;
+    $('stickyScore').textContent = total + " / 100";
+
+    // status
+    const tag = $('statusTag');
+    const stickyTag = $('stickyTag');
+    let status="—", tagClass="tag", pillClass="pillSmall";
+
+    if(total >= 67){
+      status = "满足门槛";
+      tagClass = "tag tagOk";
+      pillClass = "pillSmall tagOk";
+      tag.textContent = "🟢 ≥67（满足）";
+    } else {
+      status = "差距较大";
+      tagClass = "tag tagBad";
+      pillClass = "pillSmall tagBad";
+      tag.textContent = "🔴 <67（未达标）";
+    }
+
+    $('status').textContent = status;
+    tag.className = tagClass;
+    stickyTag.className = pillClass;
+    stickyTag.textContent = tag.textContent;
+
+    // advice
+    const gaps = [];
+    if(!l1.selectedAll) gaps.push("语言：请先把第一语言四项都填好，系统才能准确判断。");
+    else if(!l1.eligible) gaps.push("语言：第一语言任一项需达到 CLB7+ 才满足 FSW 最低要求，建议优先补齐短板。");
+    if(l1.total < 20) gaps.push("语言：提升到 CLB8/9 对总分提升最明显。");
+    if(job === 0) gaps.push("安排就业：如可获得合规 Job Offer，可加 10 分。");
+    if(adapt < 10) gaps.push("适应能力：配偶语言/加拿大学习/加拿大工作/亲属等可组合加分（封顶 10）。");
+    if(edu < 21) gaps.push("学历：如可提升到更高等效学历，分数上限更高。");
+
+    const advice = (total>=67) ? '' : `未达到 67 分门槛：建议优先提升以下方向：
+• 语言：请先把第一语言四项都填好，系统才能准确判断。
+• 语言：提升到 CLB8/9 对总分提升最明显。
+• 安排就业：如可获得合规 Job Offer，可加 10 分。
+• 适应能力：配偶语言/加拿大学习/加拿大工作/亲属等可组合加分（封顶 10）。
+• 学历：如可提升到更高等效学历，分数上限更高。`;
+    const adviceEl = $('advice');
+    if(adviceEl) adviceEl.textContent = advice;
+  }
+
+  function resetAllZero(){
+    ['c_name','c_contact','c_noc','c_note'].forEach(id=> $(id).value="");
+    ['age','edu','exp','job'].forEach(id=> $(id).value="0");
+    ['l1_s','l1_l','l1_r','l1_w','l2_s','l2_l','l2_r','l2_w'].forEach(id=> $(id).value="0");
+    document.querySelectorAll('#adaptList input[type="checkbox"]').forEach(c=> c.checked=false);
+    evaluate();
+  }
+
+  document.addEventListener("change", (e)=>{
+    if(e.target && (e.target.matches('select') || e.target.matches('#adaptList input[type="checkbox"]'))) evaluate();
+  });
+
+  $('pdfBtn').addEventListener("click", ()=>window.print());
+  $('stickyPDF').addEventListener("click", ()=>window.print());
+  $('resetBtn').addEventListener("click", resetAllZero);
+
+  window.addEventListener("DOMContentLoaded", resetAllZero);
+</script>
+</body>
 </html>
